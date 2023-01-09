@@ -1,48 +1,86 @@
 #include <WiFi.h>
 #include <WiFiManager.h>    
+#include <ArduinoHA.h>
 #include <Bounce2.h>
+#include "horn.hpp"
 
-#define HORN_PIN 31
+#define HORN_PIN 33
 #define SWITCH_PIN 17
+#define DEFAULT_DURATION 2000
+#define WIFI_SSID "DoorBellAP"
+#define WIFI_PASS "012345678"
+#define MQTT_SERVER "192.168.8.3"
 
-const char *default_ap = "DoorBellAP";
-const char *default_pass = "012345678";
+WiFiClient wifiClient;
 
-Bounce bounce = Bounce();
+HADevice device;
+HAMqtt mqtt(wifiClient, device);
+HABinarySensor button("switch");
+HASwitch mode("mute");
+HANumber duration("duration");
+
+Horn horn = Horn(HORN_PIN, SWITCH_PIN, DEFAULT_DURATION);
+
+void modeChanged(bool state, HASwitch* sender) {
+  sender->setState(state);
+}
+
+void durationChange(HANumeric number, HANumber *sender) {
+  sender->setState(number);
+  horn.set_duration(number.toInt32());
+}
+
+void onWifiConnect(WiFiEvent_t event, WiFiEventInfo_t info) {
+  Serial.println("WIFI Got IP");
+  mqtt.begin(MQTT_SERVER);
+}
+
+void onWifiDisconnect(WiFiEvent_t event, WiFiEventInfo_t info) {
+  Serial.println("WIFI disconnect");
+  mqtt.disconnect();
+}
 
 void setup() {
-  Serial.begin(151200);
+  Serial.begin(115200);
+  horn.init();
 
-  Serial.println("Init pins\n");
-  pinMode(HORN_PIN, OUTPUT);
-  digitalWrite(HORN_PIN, LOW);
+  Serial.println("Init HomeAssistant entityes\n");
+  byte mac[6];
+  WiFi.macAddress(mac);
+  device.setUniqueId(mac, sizeof(mac));
+  device.setName("DoorBell Controller");
+  device.setSoftwareVersion("1.0.0");
 
-  pinMode(SWITCH_PIN, INPUT_PULLUP);
-  bounce.attach(SWITCH_PIN);
-  bounce.interval(20);
+  button.setName("Button");
+  button.setIcon("mdi:home");
+
+  mode.setName("Mute");
+  mode.setIcon("mdi:bell");
+  mode.onCommand(modeChanged);
+  mode.turnOff();
+
+  duration.setName("Duration");
+  duration.setMode(HANumber::ModeSlider);
+  duration.setState(DEFAULT_DURATION, true);
+  duration.setMin(500);
+  duration.setMax(10000);
+  duration.setStep(500);
+  duration.setUnitOfMeasurement("msec");
+  duration.onCommand(durationChange);
 
   Serial.println("Init wifi connection\n");
   WiFiManager wifiManager;
-  wifiManager.autoConnect(default_ap, default_pass);
+  wifiManager.autoConnect(WIFI_SSID, WIFI_PASS);
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(true);
+  WiFi.onEvent(onWifiConnect, SYSTEM_EVENT_ETH_GOT_IP);
+  WiFi.onEvent(onWifiDisconnect, SYSTEM_EVENT_STA_DISCONNECTED);
 
-}
-
-void horn() {
-  Serial.println("Horn\n");
-  digitalWrite(HORN_PIN, HIGH);
-  delay(4000);
-  digitalWrite(HORN_PIN, LOW);
+  Serial.println("Start mqtt\n");
+  mqtt.begin(MQTT_SERVER);
 }
 
 void loop() {
-  bounce.update();
-
-  if ( bounce.changed() ) {
-    int switch_state = bounce.read();
-    Serial.print("Bounce read state is ");
-    Serial.print(switch_state);
-    if(switch_state == LOW) {
-      horn();
-    }
-  }
+  mqtt.loop();
+  horn.update();
 }

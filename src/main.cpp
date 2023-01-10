@@ -19,7 +19,9 @@ HABinarySensor button("switch");
 HASwitch mode("mute");
 HANumber duration("duration");
 
-Horn horn = Horn(HORN_PIN, SWITCH_PIN, DEFAULT_DURATION);
+Horn horn = Horn(HORN_PIN, DEFAULT_DURATION);
+
+Bounce spin = Bounce();
 
 void modeChanged(bool state, HASwitch* sender) {
   sender->setState(state);
@@ -31,7 +33,7 @@ void durationChange(HANumeric number, HANumber *sender) {
 }
 
 void onWifiConnect(WiFiEvent_t event, WiFiEventInfo_t info) {
-  Serial.println("WIFI Got IP");
+  Serial.println("WIFI Got IP, Start MQTT");
   mqtt.begin(MQTT_SERVER);
 }
 
@@ -42,7 +44,9 @@ void onWifiDisconnect(WiFiEvent_t event, WiFiEventInfo_t info) {
 
 void setup() {
   Serial.begin(115200);
-  horn.init();
+
+  spin.attach(SWITCH_PIN, INPUT_PULLUP);
+  pinMode(HORN_PIN, OUTPUT);
 
   Serial.println("Init HomeAssistant entityes\n");
   byte mac[6];
@@ -61,7 +65,7 @@ void setup() {
 
   duration.setName("Duration");
   duration.setMode(HANumber::ModeSlider);
-  duration.setState(DEFAULT_DURATION, true);
+  duration.setCurrentState(DEFAULT_DURATION);
   duration.setMin(500);
   duration.setMax(10000);
   duration.setStep(500);
@@ -70,17 +74,24 @@ void setup() {
 
   Serial.println("Init wifi connection\n");
   WiFiManager wifiManager;
-  wifiManager.autoConnect(WIFI_SSID, WIFI_PASS);
   WiFi.setAutoReconnect(true);
   WiFi.persistent(true);
-  WiFi.onEvent(onWifiConnect, SYSTEM_EVENT_ETH_GOT_IP);
+  WiFi.onEvent(onWifiConnect, SYSTEM_EVENT_STA_GOT_IP);
   WiFi.onEvent(onWifiDisconnect, SYSTEM_EVENT_STA_DISCONNECTED);
-
-  Serial.println("Start mqtt\n");
-  mqtt.begin(MQTT_SERVER);
+  wifiManager.autoConnect(WIFI_SSID, WIFI_PASS);
 }
 
 void loop() {
   mqtt.loop();
   horn.update();
+  spin.update();
+
+  if(spin.changed()) {
+      if(spin.read() == LOW) {
+          horn.ring();
+      }
+  }
+
+  digitalWrite(HORN_PIN, horn.get_state());
+  button.setState(horn.get_state());
 }

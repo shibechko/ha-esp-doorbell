@@ -2,7 +2,7 @@
 
 class Horn {
   public:
-    Horn(int hpin, int default_duration);
+    Horn(int default_duration);
     void ring();
     bool get_state();
     void update();

@@ -1,5 +1,5 @@
 #include <WiFi.h>
-#include <WiFiManager.h>    
+#include <WiFiManager.h>
 #include <ArduinoHA.h>
 #include <Bounce2.h>
 #include "horn.hpp"
@@ -19,7 +19,7 @@ HABinarySensor button("switch");
 HASwitch mode("mute");
 HANumber duration("duration");
 
-Horn horn = Horn(HORN_PIN, DEFAULT_DURATION);
+Horn horn = Horn(DEFAULT_DURATION);
 
 Bounce spin = Bounce();
 

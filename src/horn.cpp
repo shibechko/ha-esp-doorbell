@@ -1,7 +1,6 @@
 #include "horn.hpp"
 
-Horn::Horn(int hpin, int default_duration) {
-    horn_pin = hpin; 
+Horn::Horn(int default_duration) {
     duration = default_duration;
 }
 

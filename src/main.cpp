@@ -92,6 +92,10 @@ void loop() {
       }
   }
 
-  digitalWrite(HORN_PIN, horn.get_state());
+  if(!mode.getCurrentState()) {
+    digitalWrite(HORN_PIN, horn.get_state());
+  } else {
+    digitalWrite(HORN_PIN, LOW);
+  }
   button.setState(horn.get_state());
 }

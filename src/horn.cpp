@@ -24,4 +24,3 @@ void Horn::update() {
 void Horn::set_duration(int dur) {
     duration = dur;
 }
-
